@@ -1,0 +1,11 @@
+Windows
+py -3.13 main.py
+py -3.10 main.py
+py -3.8 main.py
+
+
+linux
+python3.13 main.py
+python3.10 main.py
+python3.8 main.py
+
