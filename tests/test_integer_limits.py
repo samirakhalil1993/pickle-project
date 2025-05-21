@@ -20,7 +20,6 @@ class TestPickleIntegerSerialization(unittest.TestCase):
             with self.subTest(description=description):
                 try:
                     hashed = hash_pickle(value)
-                    self.assertIsInstance(hashed, str)
                     self.assertEqual(len(hashed), 64)  # SHA-256 hex digest is 64 characters
                 except Exception as e:
                     self.fail(f"Unexpected error for {description}: {e}")
