@@ -165,6 +165,8 @@ class TestPickleIntegrity(unittest.TestCase):
             category_count = 0
             category_failed = 0
             
+            print(f"\nTesting category: {category}")
+            
             for obj in test_objects:
                 self.test_count += 1
                 category_count += 1
@@ -174,6 +176,13 @@ class TestPickleIntegrity(unittest.TestCase):
                     serialized = pickle.dumps(obj)
                     deserialized = pickle.loads(serialized)
                     
+                    # Print detailed debug information
+                    print("\n" + "-"*60)
+                    print(f"Testing serialization of: {type(obj).__name__}")
+                    print(f"BEFORE pickle: {format_obj_for_display(obj)}")
+                    print(f"AFTER unpickle: {format_obj_for_display(deserialized)}")
+                    print(f"Serialized size: {len(serialized)} bytes")
+                    
                     # Special handling for Point with NaN values
                     if isinstance(obj, Point) and (is_nan(obj.x) or is_nan(obj.y)):
                         # For Point with NaN, check both coordinates separately
@@ -182,99 +191,84 @@ class TestPickleIntegrity(unittest.TestCase):
                         x_equal = obj.x == deserialized.x if not is_nan(obj.x) else x_same_nan
                         y_equal = obj.y == deserialized.y if not is_nan(obj.y) else y_same_nan
                         
+                        # Display equality result for special case
+                        print(f"Objects equal? {'YES' if x_equal and y_equal else 'NO'}")
+                        
                         if not (x_equal and y_equal):
                             error_msg = (f"Point with special values not preserved in {category}\n"
                                          f"  Original: Point(x={obj.x}, y={obj.y})\n"
                                          f"  Deserialized: Point(x={deserialized.x}, y={deserialized.y})")
                             self.failed_tests.append(error_msg)
                             category_failed += 1
-                            
-                            # Print detailed failure info
-                            print(f"\nFAILURE DETAILS - Point in {category}:")
-                            print(f"  Original Point: {obj}")
-                            print(f"  Deserialized Point: {deserialized}")
-                            print(f"  Original x: {obj.x} (is NaN: {is_nan(obj.x)})")
-                            print(f"  Deserialized x: {deserialized.x} (is NaN: {is_nan(deserialized.x)})")
-                            print(f"  Original y: {obj.y} (is NaN: {is_nan(obj.y)})")
-                            print(f"  Deserialized y: {deserialized.y} (is NaN: {is_nan(deserialized.y)})")
-                            print(f"  X values match: {x_equal}")
-                            print(f"  Y values match: {y_equal}")
                             continue
-                            
                     # Special handling for NaN values (can't use equality)
                     elif isinstance(obj, float) and is_nan(obj):  # NaN check
-                        if not is_nan(deserialized):  # If result is not NaN
+                        # Display equality result for NaN
+                        nan_preserved = is_nan(deserialized)
+                        print(f"Objects equal? {'YES' if nan_preserved else 'NO'}")
+                        
+                        if not nan_preserved:  # If result is not NaN
                             error_msg = (f"NaN value not preserved for float "
                                          f"in {category}")
                             self.failed_tests.append(error_msg)
                             category_failed += 1
-                            
-                            print(f"\nFAILURE DETAILS - Float in {category}:")
-                            print(f"  Original: {obj} (is NaN: {is_nan(obj)})")
-                            print(f"  Deserialized: {deserialized} (is NaN: {is_nan(deserialized)})")
                             continue
-                            
                     # Complex with NaN
                     elif (isinstance(obj, complex) and 
                           (is_nan(obj.real) or is_nan(obj.imag))):
                         real_ok = (is_nan(obj.real) and is_nan(deserialized.real)) or obj.real == deserialized.real
                         imag_ok = (is_nan(obj.imag) and is_nan(deserialized.imag)) or obj.imag == deserialized.imag
                         
+                        # Display equality result for complex with NaN
+                        print(f"Objects equal? {'YES' if real_ok and imag_ok else 'NO'}")
+                        
                         if not (real_ok and imag_ok):
                             error_msg = (f"NaN component not preserved for complex "
                                          f"in {category}")
                             self.failed_tests.append(error_msg)
                             category_failed += 1
-                            
-                            print(f"\nFAILURE DETAILS - Complex in {category}:")
-                            print(f"  Original: {obj}")
-                            print(f"  Deserialized: {deserialized}")
-                            print(f"  Original real: {obj.real} (is NaN: {is_nan(obj.real)})")
-                            print(f"  Deserialized real: {deserialized.real} (is NaN: {is_nan(deserialized.real)})")
-                            print(f"  Original imag: {obj.imag} (is NaN: {is_nan(obj.imag)})")
-                            print(f"  Deserialized imag: {deserialized.imag} (is NaN: {is_nan(deserialized.imag)})")
                             continue
-                            
                     # Regular equality check
-                    elif deserialized != obj:
-                        error_msg = (f"Value not preserved for {type(obj).__name__} "
-                                     f"in {category}")
-                        self.failed_tests.append(error_msg)
-                        category_failed += 1
+                    else:
+                        equality_result = (deserialized == obj)
+                        print(f"Objects equal? {'YES' if equality_result else 'NO'}")
                         
-                        print(f"\nFAILURE DETAILS - {type(obj).__name__} in {category}:")
-                        print(f"  Original: {format_obj_for_display(obj)}")
-                        print(f"  Deserialized: {format_obj_for_display(deserialized)}")
-                        continue
+                        if not equality_result:
+                            error_msg = (f"Value not preserved for {type(obj).__name__} "
+                                         f"in {category}")
+                            self.failed_tests.append(error_msg)
+                            category_failed += 1
+                            continue
                     
                     # Type check
-                    if not isinstance(deserialized, type(obj)):
+                    type_result = isinstance(deserialized, type(obj))
+                    print(f"Types match? {'YES' if type_result else 'NO'}")
+                    
+                    if not type_result:
                         error_msg = (f"Type changed for {type(obj).__name__} "
                                      f"in {category}")
                         self.failed_tests.append(error_msg)
                         category_failed += 1
-                        
-                        print(f"\nFAILURE DETAILS - Type mismatch in {category}:")
-                        print(f"  Original type: {type(obj).__name__}")
-                        print(f"  Deserialized type: {type(deserialized).__name__}")
                         continue
                     
                     # Hash consistency check
                     hash_before = hash_pickle(obj)
                     hash_after = hash_pickle(deserialized)
-                    if hash_before != hash_after:
+                    hash_result = (hash_before == hash_after)
+                    print(f"Hashes match? {'YES' if hash_result else 'NO'}")
+                    print(f"Original hash: {hash_before[:10]}...")
+                    print(f"Restored hash: {hash_after[:10]}...")
+                    
+                    if not hash_result:
                         error_msg = (f"Hash mismatch for {type(obj).__name__} "
                                      f"in {category}")
                         self.failed_tests.append(error_msg)
                         category_failed += 1
-                        
-                        print(f"\nFAILURE DETAILS - Hash mismatch in {category}:")
-                        print(f"  Original hash: {hash_before}")
-                        print(f"  Deserialized hash: {hash_after}")
                         continue
                     
                     # If we get here, test passed
                     self.successful_tests += 1
+                    print(f"TEST PASSED for {type(obj).__name__}")
                     
                 except Exception as e:
                     error_msg = (f"Exception with {type(obj).__name__} in {category}: "
