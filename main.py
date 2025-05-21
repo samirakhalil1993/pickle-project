@@ -2,11 +2,11 @@ import unittest
 import pickle
 import hashlib
 
-def hash_pickle(data):
+def hash_pickle(data, protocol=pickle.HIGHEST_PROTOCOL):
     """
     Serialize the data using pickle and generate a SHA256 hash.
     """
-    serialized = pickle.dumps(data)
+    serialized = pickle.dumps(data, protocol=protocol)
     return hashlib.sha256(serialized).hexdigest()
 
 
