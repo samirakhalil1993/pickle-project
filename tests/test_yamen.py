@@ -29,6 +29,11 @@ def format_obj_for_display(obj):
         return f"<Unable to format object: {e}>"
 
 
+def is_nan(value):
+    """Check if a value is NaN."""
+    return isinstance(value, float) and value != value
+
+
 class TestPickleIntegrity(unittest.TestCase):
     """
     Tests three main aspects:
@@ -49,18 +54,18 @@ class TestPickleIntegrity(unittest.TestCase):
     def tearDown(self):
         """Print test summary."""
         if self.failed_tests:
-            print(f"\n❌ {len(self.failed_tests)} of {self.test_count} tests FAILED:")
+            print(f"\nFAILED: {len(self.failed_tests)} of {self.test_count} tests failed:")
             for failure in self.failed_tests:
                 print(f"  - {failure}")
         else:
-            print(f"\n✅ All {self.test_count} tests PASSED")
+            print(f"\nPASSED: All {self.test_count} tests passed")
     
     def test_tc01_round_trip_integrity(self):
         """
         TC01: Verify object remains unchanged after pickle and unpickle.
         Tests various edge cases based on pickle documentation.
         """
-        print("\n📋 TC01: Testing Round-Trip Integrity")
+        print("\nTC01: Testing Round-Trip Integrity")
         print("This test verifies that objects remain unchanged after "
               "serialization and deserialization")
         
@@ -160,6 +165,8 @@ class TestPickleIntegrity(unittest.TestCase):
             category_count = 0
             category_failed = 0
             
+            print(f"\nTesting category: {category}")
+            
             for obj in test_objects:
                 self.test_count += 1
                 category_count += 1
@@ -169,9 +176,38 @@ class TestPickleIntegrity(unittest.TestCase):
                     serialized = pickle.dumps(obj)
                     deserialized = pickle.loads(serialized)
                     
+                    # Print detailed debug information
+                    print("\n" + "-"*60)
+                    print(f"Testing serialization of: {type(obj).__name__}")
+                    print(f"BEFORE pickle: {format_obj_for_display(obj)}")
+                    print(f"AFTER unpickle: {format_obj_for_display(deserialized)}")
+                    print(f"Serialized size: {len(serialized)} bytes")
+                    
+                    # Special handling for Point with NaN values
+                    if isinstance(obj, Point) and (is_nan(obj.x) or is_nan(obj.y)):
+                        # For Point with NaN, check both coordinates separately
+                        x_same_nan = is_nan(obj.x) and is_nan(deserialized.x)
+                        y_same_nan = is_nan(obj.y) and is_nan(deserialized.y)
+                        x_equal = obj.x == deserialized.x if not is_nan(obj.x) else x_same_nan
+                        y_equal = obj.y == deserialized.y if not is_nan(obj.y) else y_same_nan
+                        
+                        # Display equality result for special case
+                        print(f"Objects equal? {'YES' if x_equal and y_equal else 'NO'}")
+                        
+                        if not (x_equal and y_equal):
+                            error_msg = (f"Point with special values not preserved in {category}\n"
+                                         f"  Original: Point(x={obj.x}, y={obj.y})\n"
+                                         f"  Deserialized: Point(x={deserialized.x}, y={deserialized.y})")
+                            self.failed_tests.append(error_msg)
+                            category_failed += 1
+                            continue
                     # Special handling for NaN values (can't use equality)
-                    if isinstance(obj, float) and obj != obj:  # NaN check
-                        if deserialized == deserialized:  # If result is not NaN
+                    elif isinstance(obj, float) and is_nan(obj):  # NaN check
+                        # Display equality result for NaN
+                        nan_preserved = is_nan(deserialized)
+                        print(f"Objects equal? {'YES' if nan_preserved else 'NO'}")
+                        
+                        if not nan_preserved:  # If result is not NaN
                             error_msg = (f"NaN value not preserved for float "
                                          f"in {category}")
                             self.failed_tests.append(error_msg)
@@ -179,26 +215,36 @@ class TestPickleIntegrity(unittest.TestCase):
                             continue
                     # Complex with NaN
                     elif (isinstance(obj, complex) and 
-                          (obj.real != obj.real or obj.imag != obj.imag)):
-                        if ((deserialized.real == deserialized.real and 
-                             obj.real != obj.real) or
-                            (deserialized.imag == deserialized.imag and 
-                             obj.imag != obj.imag)):
+                          (is_nan(obj.real) or is_nan(obj.imag))):
+                        real_ok = (is_nan(obj.real) and is_nan(deserialized.real)) or obj.real == deserialized.real
+                        imag_ok = (is_nan(obj.imag) and is_nan(deserialized.imag)) or obj.imag == deserialized.imag
+                        
+                        # Display equality result for complex with NaN
+                        print(f"Objects equal? {'YES' if real_ok and imag_ok else 'NO'}")
+                        
+                        if not (real_ok and imag_ok):
                             error_msg = (f"NaN component not preserved for complex "
                                          f"in {category}")
                             self.failed_tests.append(error_msg)
                             category_failed += 1
                             continue
                     # Regular equality check
-                    elif deserialized != obj:
-                        error_msg = (f"Value not preserved for {type(obj).__name__} "
-                                     f"in {category}")
-                        self.failed_tests.append(error_msg)
-                        category_failed += 1
-                        continue
+                    else:
+                        equality_result = (deserialized == obj)
+                        print(f"Objects equal? {'YES' if equality_result else 'NO'}")
+                        
+                        if not equality_result:
+                            error_msg = (f"Value not preserved for {type(obj).__name__} "
+                                         f"in {category}")
+                            self.failed_tests.append(error_msg)
+                            category_failed += 1
+                            continue
                     
                     # Type check
-                    if not isinstance(deserialized, type(obj)):
+                    type_result = isinstance(deserialized, type(obj))
+                    print(f"Types match? {'YES' if type_result else 'NO'}")
+                    
+                    if not type_result:
                         error_msg = (f"Type changed for {type(obj).__name__} "
                                      f"in {category}")
                         self.failed_tests.append(error_msg)
@@ -208,7 +254,12 @@ class TestPickleIntegrity(unittest.TestCase):
                     # Hash consistency check
                     hash_before = hash_pickle(obj)
                     hash_after = hash_pickle(deserialized)
-                    if hash_before != hash_after:
+                    hash_result = (hash_before == hash_after)
+                    print(f"Hashes match? {'YES' if hash_result else 'NO'}")
+                    print(f"Original hash: {hash_before[:10]}...")
+                    print(f"Restored hash: {hash_after[:10]}...")
+                    
+                    if not hash_result:
                         error_msg = (f"Hash mismatch for {type(obj).__name__} "
                                      f"in {category}")
                         self.failed_tests.append(error_msg)
@@ -217,28 +268,33 @@ class TestPickleIntegrity(unittest.TestCase):
                     
                     # If we get here, test passed
                     self.successful_tests += 1
+                    print(f"TEST PASSED for {type(obj).__name__}")
                     
                 except Exception as e:
                     error_msg = (f"Exception with {type(obj).__name__} in {category}: "
                                  f"{type(e).__name__}: {str(e)}")
                     self.failed_tests.append(error_msg)
                     category_failed += 1
+                    
+                    print(f"\nFAILURE DETAILS - Exception in {category}:")
+                    print(f"  Object type: {type(obj).__name__}")
+                    print(f"  Exception: {type(e).__name__}: {str(e)}")
             
             # Store category results
             category_results[category] = (category_count, category_failed)
             
             # Print category summary
             if category_failed > 0:
-                print(f"  ❌ {category}: {category_failed} of {category_count} "
+                print(f"  FAILED: {category}: {category_failed} of {category_count} "
                       f"tests failed")
             else:
-                print(f"  ✅ {category}: All {category_count} tests passed")
+                print(f"  PASSED: {category}: All {category_count} tests passed")
     
     def test_tc05_function_and_lambda_handling(self):
         """
         TC05: Try serializing functions and lambdas.
         """
-        print("\n📋 TC05: Testing Function and Lambda Handling")
+        print("\nTC05: Testing Function and Lambda Handling")
         print("This test examines how Python's pickle module handles "
               "different types of functions")
         
@@ -278,7 +334,11 @@ class TestPickleIntegrity(unittest.TestCase):
                         error_msg = (f"{description}: Method lost context, "
                                      f"'Bob' not in result")
                         self.failed_tests.append(error_msg)
-                        function_results.append(f"❌ {description}")
+                        function_results.append(f"FAILED: {description}")
+                        
+                        print(f"\nFAILURE DETAILS - {description}:")
+                        print(f"  Expected: 'Bob' to be in the result")
+                        print(f"  Actual result: '{result}'")
                         continue
                 elif description == "Built-in function":
                     result = deserialized("test")
@@ -286,17 +346,24 @@ class TestPickleIntegrity(unittest.TestCase):
                         error_msg = (f"{description}: Function returned "
                                      f"incorrect value")
                         self.failed_tests.append(error_msg)
-                        function_results.append(f"❌ {description}")
+                        function_results.append(f"FAILED: {description}")
+                        
+                        print(f"\nFAILURE DETAILS - {description}:")
+                        print(f"  Expected result: 4")
+                        print(f"  Actual result: {result}")
                         continue
                 
                 # If we reached here, test passed
                 self.successful_tests += 1
-                function_results.append(f"✅ {description}")
+                function_results.append(f"PASSED: {description}")
                 
             except Exception as e:
                 error_msg = f"{description}: {type(e).__name__}: {str(e)}"
                 self.failed_tests.append(error_msg)
-                function_results.append(f"❌ {description}")
+                function_results.append(f"FAILED: {description}")
+                
+                print(f"\nFAILURE DETAILS - {description}:")
+                print(f"  Exception: {type(e).__name__}: {str(e)}")
         
         # Print picklable function results
         for result in function_results:
@@ -326,17 +393,21 @@ class TestPickleIntegrity(unittest.TestCase):
                 error_msg = (f"{description} was incorrectly pickled when "
                              f"it should fail")
                 self.failed_tests.append(error_msg)
-                print(f"  ❌ {description}: Incorrectly succeeded")
+                print(f"  FAILED: {description}: Incorrectly succeeded")
+                
+                print(f"\nFAILURE DETAILS - {description}:")
+                print(f"  Expected: Pickling to fail")
+                print(f"  Actual: Pickling succeeded")
             except (pickle.PicklingError, AttributeError, TypeError):
                 # This is expected - test passed
                 self.successful_tests += 1
-                print(f"  ✅ {description}: Correctly failed")
+                print(f"  PASSED: {description}: Correctly failed")
     
     def test_tc06_nested_and_recursive_structures(self):
         """
         TC06: Verify correct handling of recursive or nested objects.
         """
-        print("\n📋 TC06: Testing Nested and Recursive Structures")
+        print("\nTC06: Testing Nested and Recursive Structures")
         print("This test verifies that pickle correctly handles deeply "
               "nested and recursive structures")
         
@@ -394,17 +465,23 @@ class TestPickleIntegrity(unittest.TestCase):
                 if deserialized != obj:
                     error_msg = f"{name}: Structure not preserved correctly"
                     self.failed_tests.append(error_msg)
-                    print(f"  ❌ {name}")
+                    print(f"  FAILED: {name}")
+                    
+                    print(f"\nFAILURE DETAILS - {name}:")
+                    print(f"  Original structure and deserialized structure are not equal.")
                     continue
                 
                 # If we reached here, test passed
                 self.successful_tests += 1
-                print(f"  ✅ {name}")
+                print(f"  PASSED: {name}")
                 
             except Exception as e:
                 error_msg = f"{name}: {type(e).__name__}: {str(e)}"
                 self.failed_tests.append(error_msg)
-                print(f"  ❌ {name}")
+                print(f"  FAILED: {name}")
+                
+                print(f"\nFAILURE DETAILS - {name}:")
+                print(f"  Exception: {type(e).__name__}: {str(e)}")
         
         # Test recursive structures 
         print("\n  Testing recursive structures:")
@@ -421,14 +498,22 @@ class TestPickleIntegrity(unittest.TestCase):
                     if deserialized[3] is not deserialized:
                         error_msg = f"{name}: Recursion not preserved"
                         self.failed_tests.append(error_msg)
-                        print(f"  ❌ {name}")
+                        print(f"  FAILED: {name}")
+                        
+                        print(f"\nFAILURE DETAILS - {name}:")
+                        print(f"  Expected: deserialized[3] is deserialized")
+                        print(f"  Actual: deserialized[3] is not deserialized")
                         continue
                         
                 elif name == "Recursive dictionary":
                     if deserialized["self"] is not deserialized:
                         error_msg = f"{name}: Recursion not preserved"
                         self.failed_tests.append(error_msg)
-                        print(f"  ❌ {name}")
+                        print(f"  FAILED: {name}")
+                        
+                        print(f"\nFAILURE DETAILS - {name}:")
+                        print(f"  Expected: deserialized['self'] is deserialized")
+                        print(f"  Actual: deserialized['self'] is not deserialized")
                         continue
                         
                 elif name == "Circular reference in custom objects":
@@ -436,24 +521,35 @@ class TestPickleIntegrity(unittest.TestCase):
                         deserialized.friend.name != "Bob"):
                         error_msg = f"{name}: Object attributes not preserved"
                         self.failed_tests.append(error_msg)
-                        print(f"  ❌ {name}")
+                        print(f"  FAILED: {name}")
+                        
+                        print(f"\nFAILURE DETAILS - {name}:")
+                        print(f"  Original: Alice->Bob->Alice")
+                        print(f"  Deserialized: {deserialized.name}->{deserialized.friend.name}")
                         continue
                     
                     if deserialized.friend.friend is not deserialized:
                         error_msg = f"{name}: Circular reference not preserved"
                         self.failed_tests.append(error_msg)
-                        print(f"  ❌ {name}")
+                        print(f"  FAILED: {name}")
+                        
+                        print(f"\nFAILURE DETAILS - {name}:")
+                        print(f"  Expected: deserialized.friend.friend is deserialized")
+                        print(f"  Actual: deserialized.friend.friend is not deserialized")
                         continue
                 
                 # If we reached here, test passed
                 self.successful_tests += 1
-                print(f"  ✅ {name}")
+                print(f"  PASSED: {name}")
                 
             except Exception as e:
                 error_msg = f"{name}: {type(e).__name__}: {str(e)}"
                 self.failed_tests.append(error_msg)
-                print(f"  ❌ {name}")
+                print(f"  FAILED: {name}")
+                
+                print(f"\nFAILURE DETAILS - {name}:")
+                print(f"  Exception: {type(e).__name__}: {str(e)}")
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()
