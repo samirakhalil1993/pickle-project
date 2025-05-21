@@ -1,6 +1,7 @@
 import unittest
 from main import hash_pickle
 
+
 class TestPickleLineEndings(unittest.TestCase):
 
     def test_line_ending_differences(self):

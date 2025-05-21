@@ -1,6 +1,7 @@
 import unittest
 from main import hash_pickle
 
+
 class TestPickleIntegerSerialization(unittest.TestCase):
 
     def setUp(self):
@@ -23,5 +24,3 @@ class TestPickleIntegerSerialization(unittest.TestCase):
                     self.assertEqual(len(hashed), 64)  # SHA-256 hex digest is 64 characters
                 except Exception as e:
                     self.fail(f"Unexpected error for {description}: {e}")
-
-
