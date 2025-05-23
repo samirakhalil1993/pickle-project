@@ -12,7 +12,9 @@ class TestPickleIntegerSerialization(unittest.TestCase):
             (2**63 - 1, "Max 64-bit int"),
             (2**63, "Overflow 64-bit int"),
             (-2**31, "Min 32-bit int"),
-            (-2**63, "Min 64-bit int")
+            (-2**63, "Min 64-bit int"),
+            (2**1000, "Very large int"),
+            (-2**1000, "Very large negative int")
         ]
 
     def test_pickle_integer_limits(self):
