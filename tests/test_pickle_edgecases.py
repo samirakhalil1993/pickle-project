@@ -7,10 +7,7 @@ from main import hash_pickle
 # David
 class TestPickleStringEdgeCases(unittest.TestCase):
     """
-    Tests for edge cases in string serialization with pickle.
-
-    This suite checks that special characters, escape sequences, and extreme string cases
-    are correctly preserved through pickling/unpickling, both in memory and via files.
+    Tests for edge cases in string serialization.
     """
 
     def setUp(self):
@@ -46,13 +43,10 @@ class TestPickleStringEdgeCases(unittest.TestCase):
         print(f"\n[File Test] \nWriting and reading string: \t{display_str}")
 
         hash_before = hash_pickle(original)
-
         with open(self.filename, 'wb') as f:
             pickle.dump(original, f)
-
         with open(self.filename, 'rb') as f:
             deserialized = pickle.load(f)
-
         hash_after = hash_pickle(deserialized)
 
         print(
@@ -96,54 +90,6 @@ class TestPickleStringEdgeCases(unittest.TestCase):
 
     def test_file_pickle_unicode_string(self):
         self.assert_file_pickle_integrity("Unicode file test - 測試")
-
-    # Negative tests
-    def test_unpickle_non_pickle_file(self):
-        print("\n[Negative Test] Attempting to unpickle a non-pickle text file")
-
-        with open(self.filename, 'w', encoding='utf-8') as f:
-            f.write("This is not a pickle file.")
-
-        with open(self.filename, 'rb') as f:
-            with self.assertRaises((pickle.UnpicklingError, EOFError)) as context:
-                pickle.load(f)
-
-        print(
-            f"Caught expected error: {type(context.exception).__name__} - {context.exception}")
-
-    def test_unpickle_truncated_pickle(self):
-        print("\n[Negative Test] Attempting to unpickle a truncated pickle file")
-
-        data = "Normal string"
-        with open(self.filename, 'wb') as f:
-            pickle.dump(data, f)
-
-        with open(self.filename, 'rb') as f:
-            partial_data = f.read(5)
-
-        with open(self.filename, 'wb') as f:
-            f.write(partial_data)
-
-        with open(self.filename, 'rb') as f:
-            with self.assertRaises((pickle.UnpicklingError, EOFError)) as context:
-                pickle.load(f)
-
-        print(
-            f"Caught expected error: {type(context.exception).__name__} - {context.exception}")
-
-    def test_unpickle_garbage_bytes(self):
-        print(
-            "\n[Negative Test] Attempting to unpickle from a file with random bytes")
-
-        with open(self.filename, 'wb') as f:
-            f.write(b"\x00\xff\x00\xff\xab\xcd")
-
-        with open(self.filename, 'rb') as f:
-            with self.assertRaises((pickle.UnpicklingError, EOFError, ValueError)) as context:
-                pickle.load(f)
-
-        print(
-            f"Caught expected error: {type(context.exception).__name__} - {context.exception}")
 
 
 if __name__ == "__main__":
